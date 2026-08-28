@@ -5,9 +5,18 @@ Google accounts, merges their calendars into one view, and lets you add
 events from the touchscreen that get written back to the right person's
 Google Calendar.
 
+The screen is three pages: a month grid (bottom half, always visible), and
+sharing the top half — a Detail page (Today/Week/Agenda, switched by tapping
+a tab or swiping left/right) and a Gallery page (a photo slideshow, synced
+from your phone). Swiping up or down toggles between the Detail and Gallery
+pages, with the incoming page sliding in from whichever edge matches the
+swipe direction. A camera gesture detector can drive the exact same
+up/down/left/right actions as a touch swipe — see [Gestures](#5-camera-swipe-gestures-optional)
+below.
+
 - `server/` — Node.js/Express backend: Google OAuth, calendar sync, REST API
 - `client/` — React (Vite) kiosk UI
-- `pi-setup/` — systemd service + kiosk launch script for the Pi
+- `pi-setup/` — systemd services + kiosk launch script + camera gesture detector for the Pi
 
 ## 1. Google Cloud setup (one-time, do this yourself)
 
@@ -93,6 +102,60 @@ Chromium in full-screen kiosk mode pointed at the calendar.
 To link accounts once deployed, open `http://<pi-ip>:3001` from any other
 device on your network (not the kiosk touchscreen) and use the Accounts
 panel the same way as in local dev.
+
+## 4. Gallery photos
+
+The Gallery page shows whatever images are in `server/data/gallery/` as a
+slideshow. Sync photos into it from your phone:
+
+1. Visit `http://<pi-ip>:3001/upload` from your phone (same network as the
+   Pi). It's a plain page, no login — pick photos, upload, and they show up
+   in the Gallery within a few seconds. The same page lists and lets you
+   delete what's already there.
+2. Alternatively, anything that drops image files (`.jpg`, `.png`, `.webp`,
+   `.gif`) into `server/data/gallery/` works too — a Samba share, Syncthing,
+   `scp`, whatever you'd rather use. The server just scans that folder; the
+   upload page is one convenient way in, not the only one.
+
+## 5. Camera swipe gestures (optional)
+
+A camera pointed at the room can drive the same up/down/left/right actions a
+touch swipe does — `pi-setup/gesture-swipe.py` watches for a hand/arm
+sweeping across the frame (plain motion tracking, no GPU/NPU needed) and
+posts the direction to the server's `/api/gesture` endpoint.
+
+**This hasn't been tested against a real camera** — it's built and the HTTP
+side is verified, but the motion-detection thresholds will need tuning once
+you can see real detections. Start here:
+
+```bash
+# On the Pi:
+cd "Smart Calender/pi-setup"
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# Test the server integration without a camera:
+python3 gesture-swipe.py --simulate up
+
+# Then try it against the real camera, watching what it detects:
+python3 gesture-swipe.py --debug
+```
+
+If swipes aren't triggering, or trigger too easily, adjust the constants at
+the top of `gesture-swipe.py` (`MOTION_AREA_MIN`, `SWIPE_MIN_DISPLACEMENT_PX`,
+etc.) — `--debug` prints the displacement it measured for every candidate
+gesture, accepted or not, which is the fastest way to see what to change.
+
+Once it's behaving, install it as a service so it starts on boot:
+
+```bash
+sudo cp pi-setup/gesture-swipe.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now gesture-swipe
+```
+
+(Edit the `WorkingDirectory=`/`User=` lines first if your setup differs from
+`pi` / `/home/pi/Smart Calender`, same as the other service files.)
 
 ## Updating the deployed app
 

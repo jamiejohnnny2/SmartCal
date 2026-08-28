@@ -7,8 +7,9 @@ import { syncAccount } from '../services/calendarSync.js';
 
 const router = Router();
 
-// Distinct colors assigned to accounts in link order, cycling if more accounts are added.
-const ACCOUNT_COLORS = ['#e11d48', '#2563eb', '#16a34a', '#d97706', '#7c3aed', '#0891b2'];
+// Muted, warm-palette colors assigned to accounts in link order, cycling if more are added.
+// Kept in sync with the accent tones used in client/src/index.css.
+const ACCOUNT_COLORS = ['#c96f4a', '#8ba888', '#7c9cb5', '#d4a24c', '#a9789a', '#6fa8a0'];
 
 router.get('/', (req, res) => {
   res.json(db.data.accounts.map(({ tokens, ...rest }) => rest));

@@ -6,6 +6,9 @@ function toLocalInputValue(date) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
+const inputClass =
+  'w-full rounded-xl border border-line bg-surface-2 px-4 py-3 text-lg text-ink placeholder:text-faint focus:border-accent focus:outline-none';
+
 export default function EventModal({ calendars, initialSlot, initialEvent, onClose, onSave, onDelete }) {
   const isEdit = Boolean(initialEvent);
   const [title, setTitle] = useState(initialEvent?.title ?? '');
@@ -57,14 +60,14 @@ export default function EventModal({ calendars, initialSlot, initialEvent, onClo
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl">
-        <h3 className="mb-4 text-2xl font-semibold text-slate-900">{isEdit ? 'Edit event' : 'Add event'}</h3>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+      <div className="w-full max-w-lg rounded-2xl border border-line bg-surface p-6 shadow-2xl">
+        <h3 className="mb-4 font-serif text-3xl text-ink">{isEdit ? 'Edit event' : 'Add event'}</h3>
 
         <label className="mb-3 block">
-          <span className="mb-1 block text-sm font-medium text-slate-600">Title</span>
+          <span className="mb-1 block text-sm font-medium text-muted">Title</span>
           <input
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg"
+            className={inputClass}
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             placeholder="Event title"
@@ -73,9 +76,9 @@ export default function EventModal({ calendars, initialSlot, initialEvent, onClo
         </label>
 
         <label className="mb-3 block">
-          <span className="mb-1 block text-sm font-medium text-slate-600">Calendar</span>
+          <span className="mb-1 block text-sm font-medium text-muted">Calendar</span>
           <select
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg"
+            className={inputClass}
             value={calendarKey}
             onChange={(e) => setCalendarKey(e.target.value)}
             disabled={isEdit}
@@ -91,40 +94,36 @@ export default function EventModal({ calendars, initialSlot, initialEvent, onClo
 
         <div className="mb-3 grid grid-cols-2 gap-3">
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-600">Start</span>
+            <span className="mb-1 block text-sm font-medium text-muted">Start</span>
             <input
               type="datetime-local"
-              className="w-full rounded-xl border border-slate-300 px-3 py-3 text-base"
+              className={`${inputClass} px-3 text-base`}
               value={start}
               onChange={(e) => setStart(e.target.value)}
             />
           </label>
           <label className="block">
-            <span className="mb-1 block text-sm font-medium text-slate-600">End</span>
+            <span className="mb-1 block text-sm font-medium text-muted">End</span>
             <input
               type="datetime-local"
-              className="w-full rounded-xl border border-slate-300 px-3 py-3 text-base"
+              className={`${inputClass} px-3 text-base`}
               value={end}
               onChange={(e) => setEnd(e.target.value)}
             />
           </label>
         </div>
 
-        <label className="mb-4 block">
-          <span className="mb-1 block text-sm font-medium text-slate-600">Location (optional)</span>
-          <input
-            className="w-full rounded-xl border border-slate-300 px-4 py-3 text-lg"
-            value={location}
-            onChange={(e) => setLocation(e.target.value)}
-          />
+        <label className="mb-5 block">
+          <span className="mb-1 block text-sm font-medium text-muted">Location (optional)</span>
+          <input className={inputClass} value={location} onChange={(e) => setLocation(e.target.value)} />
         </label>
 
-        {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
+        {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
 
         <div className="flex items-center justify-between gap-3">
           {isEdit ? (
             <button
-              className="rounded-xl bg-red-50 px-4 py-3 text-lg font-medium text-red-600 active:bg-red-100"
+              className="rounded-xl bg-red-500/10 px-4 py-3 text-lg font-medium text-red-400 active:bg-red-500/20"
               onClick={onDelete}
               disabled={saving}
             >
@@ -135,14 +134,14 @@ export default function EventModal({ calendars, initialSlot, initialEvent, onClo
           )}
           <div className="flex gap-3">
             <button
-              className="rounded-xl bg-slate-100 px-5 py-3 text-lg font-medium text-slate-700 active:bg-slate-200"
+              className="rounded-xl bg-surface-2 px-5 py-3 text-lg font-medium text-muted active:bg-line"
               onClick={onClose}
               disabled={saving}
             >
               Cancel
             </button>
             <button
-              className="rounded-xl bg-blue-600 px-5 py-3 text-lg font-medium text-white active:bg-blue-700 disabled:opacity-50"
+              className="rounded-xl bg-accent px-5 py-3 text-lg font-medium text-accent-ink active:opacity-80 disabled:opacity-50"
               onClick={handleSave}
               disabled={saving}
             >

@@ -10,10 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@fontsource-variable/fraunces": "^5.1.1",
+    "@fontsource-variable/inter": "^5.1.1",
     "date-fns": "^4.1.0",
     "qrcode.react": "^4.2.0",
     "react": "^19.2.8",
-    "react-big-calendar": "^1.17.1",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {

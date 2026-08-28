@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Smart Calendar — Photos</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #17140f; --surface: #1f1b15; --surface2: #26211a; --line: #3a3226;
+    --ink: #f2ead9; --muted: #a89a82; --faint: #6f6553; --accent: #d8a15c; --accent-ink: #1c1712;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, system-ui, sans-serif; padding: 20px 16px 60px;
+  }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  p.sub { color: var(--muted); margin: 0 0 20px; font-size: 0.9rem; }
+  .dropzone {
+    border: 2px dashed var(--line); border-radius: 16px; padding: 28px 16px;
+    text-align: center; color: var(--muted); margin-bottom: 16px;
+  }
+  input[type="file"] { display: none; }
+  label.pick {
+    display: block; background: var(--accent); color: var(--accent-ink);
+    font-weight: 600; padding: 14px; border-radius: 12px; text-align: center; margin-bottom: 12px;
+  }
+  button {
+    width: 100%; padding: 14px; border-radius: 12px; border: none;
+    background: var(--accent); color: var(--accent-ink); font-weight: 600; font-size: 1rem;
+  }
+  button:disabled { opacity: 0.5; }
+  #status { margin: 10px 0; font-size: 0.9rem; color: var(--muted); min-height: 1.2em; }
+  h2 { font-size: 1rem; color: var(--muted); margin: 28px 0 10px; }
+  .grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  }
+  .thumb { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; background: var(--surface2); }
+  .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .thumb button.del {
+    position: absolute; top: 4px; right: 4px; width: 26px; height: 26px; padding: 0;
+    border-radius: 999px; background: rgba(0,0,0,0.6); color: #fff; font-size: 0.9rem; line-height: 1;
+  }
+  #empty { color: var(--faint); font-size: 0.9rem; }
+</style>
+</head>
+<body>
+  <h1>Calendar photos</h1>
+  <p class="sub">Uploads here show up in the Gallery view on the wall calendar.</p>
+
+  <form id="form">
+    <label class="pick" for="file">Choose photos</label>
+    <input id="file" type="file" accept="image/*" multiple />
+    <div id="status"></div>
+    <button id="submit" type="submit" disabled>Upload</button>
+  </form>
+
+  <h2>On the calendar now</h2>
+  <div id="grid" class="grid"></div>
+  <div id="empty" style="display:none">No photos yet.</div>
+
+<script>
+  const fileInput = document.getElementById('file');
+  const submitBtn = document.getElementById('submit');
+  const status = document.getElementById('status');
+  const form = document.getElementById('form');
+  const grid = document.getElementById('grid');
+  const empty = document.getElementById('empty');
+
+  fileInput.addEventListener('change', () => {
+    submitBtn.disabled = fileInput.files.length === 0;
+    status.textContent = fileInput.files.length ? `${fileInput.files.length} selected` : '';
+  });
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    if (!fileInput.files.length) return;
+    submitBtn.disabled = true;
+    status.textContent = 'Uploading…';
+    const body = new FormData();
+    for (const f of fileInput.files) body.append('photos', f);
+    try {
+      const res = await fetch('/api/photos', { method: 'POST', body });
+      if (!res.ok) throw new Error('Upload failed');
+      status.textContent = 'Uploaded!';
+      fileInput.value = '';
+      submitBtn.disabled = true;
+      await loadPhotos();
+    } catch (err) {
+      status.textContent = err.message;
+      submitBtn.disabled = false;
+    }
+  });
+
+  async function loadPhotos() {
+    const res = await fetch('/api/photos');
+    const photos = await res.json();
+    grid.innerHTML = '';
+    empty.style.display = photos.length ? 'none' : 'block';
+    for (const p of photos) {
+      const div = document.createElement('div');
+      div.className = 'thumb';
+      div.innerHTML = `<img src="${p.url}" loading="lazy" /><button class="del" data-filename="${p.filename}">×</button>`;
+      grid.appendChild(div);
+    }
+  }
+
+  grid.addEventListener('click', async (e) => {
+    const btn = e.target.closest('button.del');
+    if (!btn) return;
+    btn.disabled = true;
+    await fetch(`/api/photos/${encodeURIComponent(btn.dataset.filename)}`, { method: 'DELETE' });
+    await loadPhotos();
+  });
+
+  loadPhotos();
+</script>
+</body>
+</html>

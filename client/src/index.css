@@ -1,4 +1,22 @@
 @import "tailwindcss";
+@import "@fontsource-variable/fraunces";
+@import "@fontsource-variable/inter";
+
+@theme {
+  --font-serif: "Fraunces Variable", ui-serif, Georgia, serif;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
+
+  /* Warm, dark wall-calendar palette. */
+  --color-bg: #17140f;
+  --color-surface: #1f1b15;
+  --color-surface-2: #26211a;
+  --color-line: #3a3226;
+  --color-ink: #f2ead9;
+  --color-muted: #a89a82;
+  --color-faint: #6f6553;
+  --color-accent: #d8a15c;
+  --color-accent-ink: #1c1712;
+}
 
 html, body, #root {
   height: 100%;
@@ -8,4 +26,11 @@ body {
   overscroll-behavior: none;
   -webkit-tap-highlight-color: transparent;
   user-select: none;
+  background: var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+* {
+  box-sizing: border-box;
 }

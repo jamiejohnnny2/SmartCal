@@ -4,3 +4,5 @@ server/.env
 server/data/
 client/dist/
 *.log
+pi-setup/.venv/
+__pycache__/

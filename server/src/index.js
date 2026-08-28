@@ -5,11 +5,15 @@ import express from 'express';
 import accountsRouter from './routes/accounts.js';
 import calendarsRouter from './routes/calendars.js';
 import eventsRouter from './routes/events.js';
+import focusRouter from './routes/focus.js';
+import gestureRouter from './routes/gesture.js';
+import photosRouter, { galleryDir } from './routes/photos.js';
 import { startSyncLoop, syncAllAccounts } from './services/calendarSync.js';
 import { db } from './store/db.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const clientDist = path.join(__dirname, '..', '..', 'client', 'dist');
+const publicDir = path.join(__dirname, '..', 'public');
 
 const app = express();
 app.use(express.json());
@@ -21,11 +25,19 @@ app.get('/api/health', (req, res) => {
 app.use('/api/accounts', accountsRouter);
 app.use('/api/calendars', calendarsRouter);
 app.use('/api/events', eventsRouter);
+app.use('/api/focus', focusRouter);
+app.use('/api/gesture', gestureRouter);
+app.use('/api/photos', photosRouter);
 
 app.post('/api/sync', async (req, res) => {
   const count = await syncAllAccounts();
   res.json({ synced: count, lastSyncAt: db.data.settings.lastSyncAt });
 });
+
+// Mobile-friendly page (visit from a phone) for syncing photos into the
+// Gallery focus view — plain static HTML, not part of the React kiosk app.
+app.get('/upload', (req, res) => res.sendFile(path.join(publicDir, 'upload.html')));
+app.use('/gallery-photos', express.static(galleryDir));
 
 // Serves the built kiosk UI (client/dist) when present, so on the Pi a single
 // process (this server) can be pointed at directly by the kiosk browser.

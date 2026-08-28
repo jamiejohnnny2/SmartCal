@@ -26,4 +26,6 @@ export const api = {
   deleteEvent: (id) => request(`/events/${id}`, { method: 'DELETE' }),
 
   triggerSync: () => request('/sync', { method: 'POST' }),
+
+  getFocus: () => request('/focus'),
 };

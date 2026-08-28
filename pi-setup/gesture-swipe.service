@@ -1,0 +1,15 @@
+[Unit]
+Description=Smart Calendar camera swipe gesture detector
+After=smart-calendar.service
+Requires=smart-calendar.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Smart Calender/pi-setup
+ExecStart=/usr/bin/python3 gesture-swipe.py --server http://localhost:3001
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
