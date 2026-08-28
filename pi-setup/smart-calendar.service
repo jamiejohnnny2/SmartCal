@@ -1,0 +1,18 @@
+[Unit]
+Description=Smart Calendar server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Adjust User/WorkingDirectory if you cloned the repo somewhere other than
+# the default pi user's home directory.
+User=pi
+WorkingDirectory=/home/pi/Smart Calender/server
+ExecStart=/usr/bin/node src/index.js
+Restart=on-failure
+RestartSec=5
+Environment=NODE_ENV=production
+
+[Install]
+WantedBy=multi-user.target

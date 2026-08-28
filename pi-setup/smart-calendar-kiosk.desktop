@@ -1,0 +1,5 @@
+[Desktop Entry]
+Type=Application
+Name=Smart Calendar Kiosk
+Exec=/home/pi/Smart Calender/pi-setup/kiosk.sh
+X-GNOME-Autostart-enabled=true
