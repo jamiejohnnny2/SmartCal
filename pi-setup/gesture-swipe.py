@@ -29,13 +29,30 @@ Setup:
 """
 
 import argparse
+import math
 import sys
 import time
 from collections import deque
 
 import requests
 
-MOTION_AREA_MIN = 4000  # min contour area (px^2) to count as "something moved"
+# Deliberately low-res: this is blob-centroid tracking, not anything that
+# benefits from detail, and background subtraction + contour finding cost
+# scales with pixel count. Keeping capture small matters on a Pi that's also
+# running the kiosk's Node server and Chromium. Not every camera/driver
+# honors requested resolution/FPS — run() logs what it actually got so
+# that's easy to spot rather than silently eating more CPU than expected.
+CAPTURE_WIDTH = 320
+CAPTURE_HEIGHT = 240
+CAPTURE_FPS = 15
+
+# The thresholds below are sized for the CAPTURE_WIDTH/HEIGHT above — if you
+# change those, these should scale roughly with pixel count (area) or frame
+# width (linear distances).
+MOTION_AREA_MIN = 1000  # min contour area (px^2) to count as "something moved"
+MAX_JUMP_PX = 200  # if the tracked point jumps further than this between frames,
+# treat it as a different object (e.g. someone walked behind the swiper) and
+# start a fresh track rather than let two unrelated motions blend into one.
 SWIPE_MIN_DISPLACEMENT_PX = 120  # net movement required along the dominant axis
 SWIPE_MAX_WINDOW_S = 1.2  # a swipe must complete within this long
 GESTURE_COOLDOWN_S = 1.0  # ignore new gestures for this long after firing one
@@ -74,6 +91,23 @@ def run(camera_index, server, debug):
         print(f"Could not open camera index {camera_index}", file=sys.stderr)
         sys.exit(1)
 
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, CAPTURE_WIDTH)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, CAPTURE_HEIGHT)
+    cap.set(cv2.CAP_PROP_FPS, CAPTURE_FPS)
+    actual_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+    actual_h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    actual_fps = cap.get(cv2.CAP_PROP_FPS)
+    print(
+        f"Camera {camera_index}: requested {CAPTURE_WIDTH}x{CAPTURE_HEIGHT}@{CAPTURE_FPS}fps, "
+        f"got {actual_w:.0f}x{actual_h:.0f}@{actual_fps:.0f}fps"
+    )
+    if actual_w > CAPTURE_WIDTH * 1.5:
+        print(
+            "  Camera ignored the resolution request — it'll work, but detection may run "
+            "hotter on CPU than expected. Consider a resize step if that's a problem.",
+            file=sys.stderr,
+        )
+
     bg_subtractor = cv2.createBackgroundSubtractorMOG2(history=200, varThreshold=40, detectShadows=False)
 
     track = deque()  # list of (timestamp, cx, cy) while a motion blob is being followed
@@ -95,10 +129,23 @@ def run(camera_index, server, debug):
         biggest = max(contours, key=cv2.contourArea, default=None)
         now = time.time()
 
-        if biggest is not None and cv2.contourArea(biggest) >= MOTION_AREA_MIN:
-            M = cv2.moments(biggest)
-            cx = M["m10"] / M["m00"]
-            cy = M["m01"] / M["m00"]
+        big_enough = biggest is not None and cv2.contourArea(biggest) >= MOTION_AREA_MIN
+        moments = cv2.moments(biggest) if big_enough else None
+
+        if moments is not None and moments["m00"] > 0:
+            cx = moments["m10"] / moments["m00"]
+            cy = moments["m01"] / moments["m00"]
+
+            # The "biggest contour" can belong to a different object frame to
+            # frame (someone walks by while a swipe is mid-motion, etc.) — a
+            # big jump means we're no longer tracking the same thing, so
+            # start over rather than blend two unrelated motions into one
+            # fake swipe.
+            if track:
+                _, last_x, last_y = track[-1]
+                if math.hypot(cx - last_x, cy - last_y) > MAX_JUMP_PX:
+                    track.clear()
+
             track.append((now, cx, cy))
             # Drop points older than the swipe window so a long, slow drift
             # of unrelated motion doesn't accumulate into a false swipe.

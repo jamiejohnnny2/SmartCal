@@ -1,0 +1,24 @@
+[Unit]
+Description=Linux Voice Assistant (Smart Calendar kiosk mic/speaker satellite)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/linux-voice-assistant
+Environment=PATH=/home/pi/linux-voice-assistant/.venv/bin:/usr/bin:/bin
+# Replace 1000 with your user's actual numeric UID if different (run `id -u`).
+Environment=PULSE_SERVER=/run/user/1000/pulse/native
+Environment=XDG_RUNTIME_DIR=/run/user/1000
+Environment=PULSE_COOKIE=/home/pi/linux-voice-assistant/tmp_pulse_cookie
+Environment=PREFERENCES_FILE=/home/pi/linux-voice-assistant/preferences.json
+Environment=AUDIO_INPUT_DEVICE=default
+Environment=AUDIO_OUTPUT_DEVICE=default
+Environment=WAKE_MODEL=okay_nabu
+ExecStart=/home/pi/linux-voice-assistant/docker-entrypoint.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

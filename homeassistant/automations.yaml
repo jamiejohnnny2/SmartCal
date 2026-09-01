@@ -1,0 +1,49 @@
+# Sentence-trigger automations that switch the Smart Calendar kiosk's Detail
+# page in response to voice commands. Requires the rest_command entities in
+# rest_commands.yaml. See ../homeassistant/README.md for setup.
+#
+# Deliberately kept to a short spoken confirmation, not a full readout of
+# events — the wall display is what shows the calendar; voice's job here is
+# just to understand the command and point the screen at the right view.
+
+- alias: "Calendar: show today"
+  triggers:
+    - trigger: conversation
+      command:
+        - "what's today"
+        - "what's on today"
+        - "show today"
+        - "show me today"
+  actions:
+    - action: rest_command.calendar_focus
+      data:
+        view: today
+    - set_conversation_response: "Here's today."
+
+- alias: "Calendar: show this week"
+  triggers:
+    - trigger: conversation
+      command:
+        - "what's this week"
+        - "what's on this week"
+        - "show this week"
+        - "show me this week"
+  actions:
+    - action: rest_command.calendar_focus
+      data:
+        view: week
+    - set_conversation_response: "Here's your week."
+
+- alias: "Calendar: show what's coming up"
+  triggers:
+    - trigger: conversation
+      command:
+        - "what's coming up"
+        - "what's on the agenda"
+        - "show the agenda"
+        - "show what's coming up"
+  actions:
+    - action: rest_command.calendar_focus
+      data:
+        view: agenda
+    - set_conversation_response: "Here's what's coming up."

@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Smart Calendar — Voice Test</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #17140f; --surface: #1f1b15; --surface2: #26211a; --line: #3a3226;
+    --ink: #f2ead9; --muted: #a89a82; --faint: #6f6553; --accent: #d8a15c; --accent-ink: #1c1712;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, system-ui, sans-serif; padding: 20px 16px 60px;
+  }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  p.sub { color: var(--muted); margin: 0 0 24px; font-size: 0.9rem; max-width: 480px; }
+  h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 24px 0 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; }
+  button {
+    padding: 16px 20px; border-radius: 12px; border: none; cursor: pointer;
+    background: var(--surface); color: var(--ink); font-size: 0.95rem; font-weight: 500;
+  }
+  button:active { background: var(--surface2); }
+  button.primary { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  button:disabled { opacity: 0.5; }
+  #log {
+    margin-top: 28px; background: var(--surface); border-radius: 12px; padding: 14px 16px;
+    font-family: ui-monospace, monospace; font-size: 0.8rem; color: var(--muted);
+    height: 260px; overflow-y: auto; white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+  <h1>Voice test panel</h1>
+  <p class="sub">
+    One button plays out a full simulated conversation — wake, listening, thinking, speaking, then done — on the
+    kiosk display, exactly like a real voice command would. No mic or Home Assistant needed.
+  </p>
+
+  <h2>Full conversation</h2>
+  <div class="row">
+    <button class="primary" data-sequence="today">"What's today"</button>
+    <button class="primary" data-sequence="week">"What's this week"</button>
+    <button class="primary" data-sequence="agenda">"What's coming up"</button>
+  </div>
+
+  <h2>Individual steps</h2>
+  <div class="row">
+    <button data-event="wake_word_detected">Wake</button>
+    <button data-event="listening">Listening</button>
+    <button data-event="thinking">Thinking</button>
+    <button data-event="tts_speaking">Speaking</button>
+    <button data-event="tts_finished">Finished</button>
+    <button data-event="idle">Idle (dismiss)</button>
+  </div>
+
+  <div id="log"></div>
+
+<script>
+  const log = document.getElementById('log');
+  const allButtons = document.querySelectorAll('button');
+
+  function append(text) {
+    const time = new Date().toLocaleTimeString();
+    log.textContent += `[${time}] ${text}\n`;
+    log.scrollTop = log.scrollHeight;
+  }
+
+  async function sendEvent(event, text) {
+    append(text !== undefined ? `${event}  "${text}"` : event);
+    const res = await fetch('/api/voice/simulate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ event, text }),
+    });
+    if (!res.ok) append(`  ! failed: ${res.status}`);
+  }
+
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  const SEQUENCES = {
+    today: ["what's today", "Here's today."],
+    week: ["what's this week", "Here's your week."],
+    agenda: ["what's coming up", "Here's what's coming up."],
+  };
+
+  async function runSequence(transcript, response) {
+    allButtons.forEach((b) => (b.disabled = true));
+    try {
+      await sendEvent('wake_word_detected');
+      await sleep(500);
+      await sendEvent('listening');
+      await sleep(1200);
+      await sendEvent('stt_text', transcript);
+      await sendEvent('thinking');
+      await sleep(700);
+      await sendEvent('tts_text', response);
+      await sendEvent('tts_speaking');
+      await sleep(2800);
+      await sendEvent('tts_finished');
+      await sleep(300);
+      await sendEvent('idle');
+    } finally {
+      allButtons.forEach((b) => (b.disabled = false));
+    }
+  }
+
+  document.querySelectorAll('button[data-sequence]').forEach((btn) => {
+    btn.addEventListener('click', () => runSequence(...SEQUENCES[btn.dataset.sequence]));
+  });
+
+  document.querySelectorAll('button[data-event]').forEach((btn) => {
+    btn.addEventListener('click', () => sendEvent(btn.dataset.event));
+  });
+</script>
+</body>
+</html>

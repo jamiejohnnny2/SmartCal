@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mock LVA — Voice Test Panel</title>
+<style>
+  :root {
+    --bg: #17140f; --surface: #1f1b15; --surface2: #26211a; --line: #3a3226;
+    --ink: #f2ead9; --muted: #a89a82; --accent: #d8a15c; --accent-ink: #1c1712;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
+    font-family: -apple-system, system-ui, sans-serif; padding: 24px 20px 60px;
+  }
+  h1 { font-size: 1.3rem; margin: 0 0 4px; }
+  p.sub { color: var(--muted); margin: 0 0 24px; font-size: 0.9rem; max-width: 480px; }
+  h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 24px 0 10px; }
+  .row { display: flex; flex-wrap: wrap; gap: 10px; }
+  button {
+    padding: 14px 18px; border-radius: 12px; border: none; cursor: pointer;
+    background: var(--surface); color: var(--ink); font-size: 0.95rem; font-weight: 500;
+  }
+  button:hover { background: var(--surface2); }
+  button.primary { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  button.primary:hover { filter: brightness(1.08); }
+  #log {
+    margin-top: 28px; background: var(--surface); border-radius: 12px; padding: 14px 16px;
+    font-family: ui-monospace, monospace; font-size: 0.8rem; color: var(--muted);
+    height: 220px; overflow-y: auto; white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+  <h1>Mock LVA control panel</h1>
+  <p class="sub">
+    Stands in for linux-voice-assistant. Make sure the calendar server (<code>npm run dev:server</code>) is
+    running too — it auto-connects here. Click a button, watch the kiosk UI react.
+  </p>
+
+  <h2>Full conversation (realistic timing)</h2>
+  <div class="row">
+    <button class="primary" data-action="today">"What's today"</button>
+    <button class="primary" data-action="week">"What's this week"</button>
+    <button class="primary" data-action="agenda">"What's coming up"</button>
+  </div>
+
+  <h2>Individual events</h2>
+  <div class="row">
+    <button data-action="wake_word_detected">Wake</button>
+    <button data-action="listening">Listening</button>
+    <button data-action="thinking">Thinking</button>
+    <button data-action="tts_speaking">Speaking</button>
+    <button data-action="tts_finished">Finished</button>
+    <button data-action="idle">Idle (dismiss)</button>
+  </div>
+
+  <div id="log"></div>
+
+<script>
+  const log = document.getElementById('log');
+  function append(text) {
+    const time = new Date().toLocaleTimeString();
+    log.textContent += `[${time}] ${text}\n`;
+    log.scrollTop = log.scrollHeight;
+  }
+
+  document.querySelectorAll('button[data-action]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const action = btn.dataset.action;
+      append(`-> ${action}`);
+      try {
+        await fetch('/trigger', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action }),
+        });
+      } catch (err) {
+        append(`error: ${err.message}`);
+      }
+    });
+  });
+</script>
+</body>
+</html>

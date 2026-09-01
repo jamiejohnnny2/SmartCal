@@ -1,0 +1,15 @@
+# Home Assistant rest_command definitions that let automations drive the
+# Smart Calendar kiosk. See ../homeassistant/README.md for how to wire this
+# into your Home Assistant configuration.yaml.
+#
+# Replace KIOSK_PI_IP below with the kiosk Pi's actual LAN IP or hostname.
+
+calendar_focus:
+  url: "http://KIOSK_PI_IP:3001/api/focus"
+  method: POST
+  content_type: "application/json"
+  payload: '{"view": "{{ view }}"}'
+
+calendar_events:
+  url: "http://KIOSK_PI_IP:3001/api/events"
+  method: GET

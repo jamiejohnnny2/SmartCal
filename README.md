@@ -17,6 +17,7 @@ below.
 - `server/` — Node.js/Express backend: Google OAuth, calendar sync, REST API
 - `client/` — React (Vite) kiosk UI
 - `pi-setup/` — systemd services + kiosk launch script + camera gesture detector for the Pi
+- `homeassistant/` — voice control config, if you have (or plan to run) Home Assistant — see [Voice control](#6-voice-control-via-home-assistant-optional)
 
 ## 1. Google Cloud setup (one-time, do this yourself)
 
@@ -156,6 +157,20 @@ sudo systemctl enable --now gesture-swipe
 
 (Edit the `WorkingDirectory=`/`User=` lines first if your setup differs from
 `pi` / `/home/pi/Smart Calender`, same as the other service files.)
+
+## 6. Voice control via Home Assistant (optional)
+
+If you have a Home Assistant server (or plan to run one), voice commands
+like "what's today" / "what's this week" can drive the kiosk display the
+same way a touch swipe does. See [homeassistant/README.md](homeassistant/README.md)
+for the full setup — it needs Home Assistant's Whisper/Piper add-ons and a
+small satellite app on the kiosk Pi, and reuses the same `/api/focus`
+endpoint the touch UI already drives.
+
+**Bigger caveat than the gallery/gesture features above**: the voice
+satellite project this depends on (`linux-voice-assistant`) is new and
+still under active development — expect more real troubleshooting here
+than with the rest of this app.
 
 ## Updating the deployed app
 
