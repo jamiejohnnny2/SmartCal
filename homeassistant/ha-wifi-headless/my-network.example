@@ -1,0 +1,28 @@
+; NetworkManager keyfile — how Home Assistant OS reads WiFi credentials from
+; a USB stick on first boot, since Raspberry Pi Imager's WiFi presets don't
+; apply to HAOS. See ../README.md, "Optional: WiFi without Ethernet".
+;
+; Only use this if you genuinely can't plug in Ethernet for the first boot —
+; it's fussier than it looks (must save as LF line endings, no file
+; extension, exact folder path on the USB stick).
+;
+; Fill in the two placeholders below, then follow the steps in the README.
+
+[connection]
+id=my-network
+uuid=72111c67-4a5d-4d5c-925c-8ac5db3eae65
+type=wifi
+
+[wifi]
+mode=infrastructure
+ssid=YOUR_WIFI_NAME_HERE
+
+[wifi-security]
+key-mgmt=wpa-psk
+psk=YOUR_WIFI_PASSWORD_HERE
+
+[ipv4]
+method=auto
+
+[ipv6]
+method=auto

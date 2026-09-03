@@ -1,63 +1,141 @@
 # Voice control via Home Assistant
 
 Lets you say "what's today" / "what's this week" / "what's coming up" and
-have the kiosk display switch to that view, using the Home Assistant server
-you already have running (the 8GB Pi) plus a small always-listening
-satellite app on the kiosk Pi itself.
+have the kiosk display switch to that view. This doc covers the **whole
+path from a blank SD card** to a working pipeline: flashing Home Assistant
+OS, onboarding, installing the two add-ons you actually need, dropping this
+repo's config in, and pairing it with the kiosk Pi's satellite app.
 
 ## Architecture
 
 ```
-HA Pi (8GB, already running)              Kiosk Pi (4GB, the calendar)
+HA Pi (fresh install, this doc)           Kiosk Pi (4GB, the calendar)
 ├── Whisper add-on (speech-to-text)        ├── Node server (already built)
 ├── Piper add-on (text-to-speech)          ├── React kiosk UI (already built)
 ├── Assist pipeline (wires the above       └── linux-voice-assistant
-│   together + wake word + intents)             — mic in / speaker out,
-├── automations.yaml (this folder)               local wake word, streams
-│   sentence triggers → rest_command             to HA after wake word
+│   together + intents)                          — mic in / speaker out,
+├── automations.yaml (this folder)               local wake word (on-device,
+│   sentence triggers → rest_command              no HA-side add-on needed
+                                                   for it — see step 3), streams
+                                                   to HA after wake word
 ```
 
-The heavy lifting (speech-to-text, text-to-speech) stays on the HA Pi, which
-already has the RAM for it. The kiosk Pi only runs a lightweight satellite
-app that listens locally for the wake word and streams audio to HA once
-triggered — no speech models run on the kiosk Pi itself.
+The heavy lifting (speech-to-text, text-to-speech) runs on the HA Pi. The
+kiosk Pi only runs a lightweight satellite app that listens locally for the
+wake word and streams audio to HA once triggered — no speech models run on
+the kiosk Pi itself, and (this is a change from how a lot of older HA voice
+writeups describe it) **HA doesn't need its own wake-word add-on either**,
+since the satellite already does that on-device before HA ever hears
+anything. That leaves exactly two add-ons to install: Whisper and Piper.
 
-**Note on the software choice:** the original plan here was built around
+**Note on the satellite software:** the original plan here was built around
 `wyoming-satellite`, but that project was archived (deprecated) on GitHub in
 January 2026. This uses its maintained successor,
 [`linux-voice-assistant`](https://github.com/OHF-Voice/linux-voice-assistant)
 (from the Open Home Foundation, the same org behind Home Assistant), which
 talks to HA over the ESPHome protocol instead of Wyoming. It's newer and
 less battle-tested than Wyoming was — expect it to need more troubleshooting
-than a mature project would, since it's genuinely still under active
-development. Whisper and Piper (the actual speech models) are unaffected by
-this either way.
+than a mature project would.
 
-## 1. Home Assistant setup (on the existing HA Pi)
+## 1. Flash Home Assistant OS
 
-1. **Settings → Add-ons → Add-on Store**, install:
-   - **Whisper** (speech-to-text)
-   - **Piper** (text-to-speech)
-   Start both after installing.
-2. **Settings → Voice assistants → Add assistant**, create a pipeline using
-   Whisper for STT and Piper for TTS. Pick whichever wake word / language
-   options you want here — the sentence triggers below don't depend on which
-   wake word you choose.
-3. Copy `rest_commands.yaml` and `automations.yaml` from this folder into
-   your Home Assistant config. Either:
-   - Add `rest_command: !include homeassistant/rest_commands.yaml` and
-     `automation: !include homeassistant/automations.yaml` to
-     `configuration.yaml` (adjust the path to wherever you place these
-     files relative to the HA config directory), or
-   - Paste their contents directly into your existing `configuration.yaml`
-     / `automations.yaml` under the `rest_command:` key and into your
-     automations list, respectively.
-4. In `rest_commands.yaml`, replace `KIOSK_PI_IP` with the kiosk Pi's actual
-   LAN IP or hostname.
-5. **Settings → System → Restart** (or reload automations/rest_commands
-   from Developer Tools → YAML) to pick up the new config.
+Use [Raspberry Pi Imager](https://www.raspberrypi.com/software/) — Home
+Assistant is one of the listed OS options, no separate download needed:
 
-## 2. Kiosk Pi setup (the calendar Pi)
+**Choose OS → Other specific-purpose OS → Home assistants and home
+automation → Home Assistant → Home Assistant OS (RPi 4/5 — match your
+board).** Pick your SD card and write.
+
+**Skip the gear-icon "OS customisation" (WiFi/hostname preset) — it doesn't
+apply to Home Assistant OS.** Unlike Raspberry Pi OS, HAOS is a locked-down
+appliance image that doesn't use the customisation Imager writes; the
+dialog may let you click through it, but it's silently ignored. This is the
+one point in the whole setup most likely to eat an hour if you don't know
+it going in.
+
+**Plug in Ethernet for first boot.** This is the reliable path — HAOS comes
+up, gets an IP via DHCP, and is reachable with zero monitor/keyboard/extra
+steps. If your HA Pi genuinely can't reach Ethernet at all (not even
+temporarily for this one boot), see
+[Optional: WiFi without Ethernet](#optional-wifi-without-ethernet-skip-if-you-have-a-cable)
+below — it works, but it's the fragile path, so use it only if you have to.
+
+Boot the Pi. Give it 3-5 minutes for first-boot setup (it's installing
+itself, not just starting), then from another device on the same network go
+to **http://homeassistant.local:8123** (fall back to `http://<its-ip>:8123`
+if `.local` doesn't resolve on your network).
+
+## 2. Onboarding
+
+A short wizard, about 5 screens:
+
+1. Preparation screen — HA finishes downloading itself, just wait.
+2. Create your account (name/username/password).
+3. Set home location (also sets timezone/units — get this right, it's used
+   later).
+4. Analytics opt-in — off by default, leave it however you like.
+5. Finish → you land on the dashboard.
+
+Device auto-discovery prompts (if any) show up on the dashboard afterward,
+not as part of onboarding — you can ignore/dismiss them, none of it matters
+for what we're building here.
+
+## 3. Install the voice add-ons + Assist pipeline
+
+**Settings → Add-ons → Add-on Store**, install and start:
+- **Whisper** (speech-to-text)
+- **Piper** (text-to-speech)
+
+That's the only two. (You may also see **Speech-to-Phrase** in the store —
+it's a newer, much lower-latency local STT option built specifically for
+matching a short fixed set of sentences, which is exactly what our
+automations use below instead of open-ended dictation. Worth trying as a
+swap-in for Whisper later if you want snappier responses, but it's not
+required — treat it as a nice-to-have, not part of the critical path.)
+
+**Settings → Voice assistants → Add assistant** — create a pipeline:
+- Conversation agent: **Home Assistant** (not a cloud LLM)
+- Speech-to-text: **Whisper**
+- Text-to-speech: **Piper**
+- Wake word: leave this **unset/None** — the kiosk satellite already
+  handles wake-word detection on-device before HA ever sees audio, so this
+  field doesn't do anything in this setup.
+
+## 4. Get this repo's config onto the box
+
+You need `rest_commands.yaml` and `automations.yaml` (both in this folder)
+copied into your HA config, plus two lines added to `configuration.yaml`.
+Easiest way in from Windows:
+
+1. **Settings → Add-ons → Add-on Store**, install and start **Samba share**.
+   Set a username/password in its configuration.
+2. On your Windows PC, open File Explorer and go to
+   `\\homeassistant\config` (or `\\<its-ip>\config`), sign in with the
+   Samba credentials you just set. This is the same folder HA itself reads
+   `configuration.yaml` from.
+3. Copy `homeassistant/rest_commands.yaml` and `homeassistant/automations.yaml`
+   from this repo into that share, unchanged in name/location (i.e. they
+   end up as `config/rest_commands.yaml` and `config/automations.yaml`).
+4. In `rest_commands.yaml`, replace `KIOSK_PI_IP` with the kiosk Pi's LAN
+   IP or hostname.
+   - **Tip:** give the kiosk Pi a DHCP reservation in your router (bind its
+     MAC to a fixed IP) so this never goes stale after a router reboot —
+     much less hassle than switching to mDNS discovery from inside HAOS,
+     which isn't guaranteed to resolve reliably.
+5. Open `config/configuration.yaml` (already there from onboarding) in a
+   text editor over the same Samba share and add, if not already present:
+   ```yaml
+   rest_command: !include rest_commands.yaml
+   automation: !include automations.yaml
+   ```
+   If `automation:` already exists with a different value (a plain list,
+   for instance), you can't have two `automation:` keys — merge our three
+   automations into whatever's already there instead of overwriting it.
+6. **Settings → System → Restart** (or Developer Tools → YAML → each
+   relevant "reload" button, faster if you don't want a full restart) to
+   pick the new config up.
+
+## 5. Kiosk Pi setup (the calendar Pi)
 
 ```bash
 # On the kiosk Pi:
@@ -93,7 +171,7 @@ sudo systemctl enable --now linux-voice-assistant
 sudo systemctl status linux-voice-assistant   # confirm it's running
 ```
 
-## 3. Pairing kiosk Pi ↔ Home Assistant
+## 6. Pairing kiosk Pi ↔ Home Assistant
 
 In Home Assistant: **Settings → Devices & services**. The satellite should
 show up as a discovered device automatically (it advertises itself via
@@ -103,7 +181,7 @@ Pi's IP address.
 Once paired, the satellite's wake word, microphone gain/noise-suppression,
 and other tuning options are available as entities on that device page.
 
-## 4. Wake overlay on the display
+## 7. Wake overlay on the display
 
 `linux-voice-assistant` exposes a local WebSocket ("peripheral API", port
 6055 by default) with a full conversation lifecycle: `wake_word_detected`,
@@ -121,13 +199,7 @@ The "speaking" pulse is **not** driven by real audio amplitude — LVA's
 peripheral API doesn't expose waveform/level data, only the `tts_speaking`
 boundary event. It's a simulated, organic-feeling wobble instead (layered
 sine waves + a little randomness), which is enough to feel alive without
-needing to separately capture the Pi's actual audio output. True
-waveform-reactivity is possible later but needs its own audio-capture
-plumbing, not just this event stream.
-
-This needed a genuine push channel rather than the polling `/api/focus` and
-`/api/gesture` use — a few seconds of lag is invisible for "switch to Week
-view", but very visible for "show something happened the instant I spoke".
+needing to separately capture the Pi's actual audio output.
 
 **Testing this without the hardware**: visit `http://<kiosk-ip>:3001/voice-test`
 (served by the calendar server itself, no extra process to run) — one click
@@ -164,7 +236,7 @@ actually broken:
 2. **The rest_command from HA**: Developer Tools → Actions → run
    `rest_command.calendar_focus` with `view: today` and confirm the display
    switches. If this fails but step 1 worked, the problem is HA's network
-   path to the kiosk Pi (wrong IP, firewall) or the `rest_command.yaml`
+   path to the kiosk Pi (wrong IP, firewall) or the `rest_commands.yaml`
    config, not the calendar or the voice pipeline.
 3. **The sentence trigger, typed**: Settings → Voice assistants → your
    pipeline → type (don't speak) "what's today" into the chat box. If this
@@ -197,3 +269,35 @@ actually broken:
   later.
 - **Camera-based presence/wake** — see `pi-setup/gesture-swipe.py` for the
   gesture side; presence detection is a separate, not-yet-started piece.
+- **Scripting the add-on installs themselves** — Supervisor's install/start
+  API exists but authenticates with a token that's only available to
+  processes already running inside HAOS, not from an external script on
+  your Windows machine, so Whisper/Piper/Samba installs stay a manual
+  Install-then-Start click in the UI (steps 3-4 above). Everything *after*
+  that — the actual config content — is what steps 4-7 automate/streamline.
+
+## Optional: WiFi without Ethernet (skip if you have a cable)
+
+If you truly can't connect the HA Pi to Ethernet even for the first boot,
+HAOS can join WiFi headlessly, but it's pickier than the equivalent
+Raspberry Pi OS feature — the most common failure is Windows saving the
+config file with the wrong line endings. A ready-to-edit template is at
+[`ha-wifi-headless/my-network.example`](ha-wifi-headless/my-network.example)
+in this folder:
+
+1. Open it in VS Code (not Notepad — Notepad can silently reintroduce
+   Windows line endings on save). Fill in your real SSID and password.
+   Confirm the line-ending indicator in VS Code's status bar says **LF**,
+   not CRLF, before saving.
+2. Save the file as exactly `my-network` — **no extension** (VS Code's
+   "save as" will try to keep `.example`; delete it from the filename box).
+3. Format a spare USB stick as FAT32, label it `CONFIG` (all caps), and
+   put the file at `CONFIG/network/my-network` on it (create the `network`
+   folder). Plug the USB stick into the Pi before powering it on.
+4. Boot the Pi. HAOS reads the file from the USB stick on first boot and
+   applies it, then it's safe to unplug the stick on subsequent boots.
+
+If it doesn't come up on WiFi within a few minutes, the fastest recovery is
+just plugging in Ethernet for that one boot rather than debugging the
+keyfile — everything past step 1 of this whole doc works identically over
+either connection type.

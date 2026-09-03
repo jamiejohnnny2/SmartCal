@@ -18,6 +18,12 @@ export default function WeekStrip({ date, events, onSelectDay }) {
           <button
             key={day.toISOString()}
             onClick={() => onSelectDay(day)}
+            // See the matching comment in AgendaList.jsx — stops this button
+            // from taking focus on press, which can otherwise trigger a
+            // window-focus hiccup that gets an in-progress swipe cancelled
+            // by the browser. Worth having here too: these 7 buttons fill
+            // the entire view, same as Agenda's dense button list.
+            onMouseDown={(e) => e.preventDefault()}
             className={`flex min-h-0 flex-col rounded-xl border p-2 text-left ${
               selected ? 'border-accent/70 bg-surface-2' : 'border-line/60 bg-surface active:bg-surface-2'
             }`}

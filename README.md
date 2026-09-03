@@ -17,7 +17,7 @@ below.
 - `server/` — Node.js/Express backend: Google OAuth, calendar sync, REST API
 - `client/` — React (Vite) kiosk UI
 - `pi-setup/` — systemd services + kiosk launch script + camera gesture detector for the Pi
-- `homeassistant/` — voice control config, if you have (or plan to run) Home Assistant — see [Voice control](#6-voice-control-via-home-assistant-optional)
+- `homeassistant/` — voice control, including a from-scratch Home Assistant OS setup guide — see [Voice control](#6-voice-control-via-home-assistant-optional)
 
 ## 1. Google Cloud setup (one-time, do this yourself)
 
@@ -160,12 +160,13 @@ sudo systemctl enable --now gesture-swipe
 
 ## 6. Voice control via Home Assistant (optional)
 
-If you have a Home Assistant server (or plan to run one), voice commands
-like "what's today" / "what's this week" can drive the kiosk display the
-same way a touch swipe does. See [homeassistant/README.md](homeassistant/README.md)
-for the full setup — it needs Home Assistant's Whisper/Piper add-ons and a
-small satellite app on the kiosk Pi, and reuses the same `/api/focus`
-endpoint the touch UI already drives.
+Voice commands like "what's today" / "what's this week" can drive the
+kiosk display the same way a touch swipe does, via a Home Assistant server.
+See [homeassistant/README.md](homeassistant/README.md) for the full setup —
+it now covers the whole path from a blank SD card (flashing Home Assistant
+OS, onboarding, the two add-ons you need, and pairing) through to the
+config that wires it to this app, and reuses the same `/api/focus` endpoint
+the touch UI already drives.
 
 **Bigger caveat than the gallery/gesture features above**: the voice
 satellite project this depends on (`linux-voice-assistant`) is new and
