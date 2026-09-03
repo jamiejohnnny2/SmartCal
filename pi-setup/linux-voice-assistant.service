@@ -16,6 +16,11 @@ Environment=PREFERENCES_FILE=/home/pi/linux-voice-assistant/preferences.json
 Environment=AUDIO_INPUT_DEVICE=default
 Environment=AUDIO_OUTPUT_DEVICE=default
 Environment=WAKE_MODEL=okay_nabu
+# Once you've trained "Hey Cal" / "Okay Cal" (see homeassistant/README.md,
+# "Train and install the wake words"), uncomment this so the satellite also
+# looks in wakewords/custom for them — pick which one(s) actually trigger it
+# via the Wake Word 1/2 selects on its Home Assistant device page.
+#Environment=WAKE_WORD_DIR=/home/pi/linux-voice-assistant/wakewords/custom
 ExecStart=/home/pi/linux-voice-assistant/docker-entrypoint.sh
 Restart=always
 RestartSec=5

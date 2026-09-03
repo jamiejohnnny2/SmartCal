@@ -181,7 +181,130 @@ Pi's IP address.
 Once paired, the satellite's wake word, microphone gain/noise-suppression,
 and other tuning options are available as entities on that device page.
 
-## 7. Wake overlay on the display
+## 7. Train and install the "Hey Cal" / "Okay Cal" wake words
+
+The satellite ships with generic bundled wake words (`okay_nabu`, `hey_jarvis`,
+etc.) and starts up using `okay_nabu` out of the box (see the `WAKE_MODEL` line
+in `pi-setup/linux-voice-assistant.service`) — that works immediately and
+needs nothing further if a stock wake word is fine. This step swaps in two
+wake words that match the assistant's actual name in this app ("Cal", per the
+wake overlay below), so either "Hey Cal" or "Okay Cal" triggers it.
+
+**This step is manual and needs a human in the loop** — training involves
+listening to synthesized pronunciations and judging by ear whether they'd
+trigger reliably on your own voice/accent, which isn't something to automate
+away. Budget roughly an hour per phrase (two phrases here), most of it
+unattended training time.
+
+**Don't use Home Assistant's own training notebook** — as of 2026 its pinned
+dependencies have drifted out of sync with what Colab's default environment
+provides, so cells fail calling functions that no longer exist upstream. This
+is a known, currently-open problem with that specific notebook
+([openWakeWord issue #317](https://github.com/dscripka/openWakeWord/issues/317)),
+not anything you did wrong. Use
+[alfiedennen/microwakeword-trainer](https://github.com/alfiedennen/microwakeword-trainer)
+instead — a community-maintained, self-driving Colab notebook that trains
+**microWakeWord** models rather than openWakeWord ones. That's actually a
+better fit here regardless of the breakage: microWakeWord is the *same*
+engine the bundled `okay_nabu` etc. already use, so the result is lighter on
+the Pi's CPU and drops in without the custom-JSON workaround an openWakeWord
+model would need.
+
+**Trained locally instead of on Colab** — the free-tier T4 GPU OOMs on
+*system* RAM during validation, not GPU compute, per that repo's README, so
+this instead ran on CPU inside WSL2 Ubuntu with a plain adaptation of the
+notebook's own cells. See [`wakeword-training/`](../wakeword-training/) in
+this repo for the script, setup instructions, and a model sanity-checker —
+skip straight to step 4 below if you use that path instead of Colab.
+
+1. Open the notebook:
+   [microWakeWord_train_any_wakeword.ipynb](https://colab.research.google.com/github/alfiedennen/microwakeword-trainer/blob/main/notebooks/microWakeWord_train_any_wakeword.ipynb)
+   (Google account required). **Runtime → Change runtime type → A100 GPU,
+   High-RAM** before running anything — the README is explicit that the
+   free-tier T4 GPU runs out of memory partway through. An A100 runtime
+   isn't included in Colab's free tier; expect to spend a few dollars of
+   Colab's pay-as-you-go compute units (or a Colab Pro subscription) to get
+   one, across both phrases.
+2. In the configuration cell, run it **twice** — once per phrase:
+   - Phrase 1: wake word `Hey Cal`, output name `hey_cal`, rough IPA
+     `heɪ kæl`
+   - Phrase 2: wake word `Okay Cal`, output name `okay_cal`, rough IPA
+     `oʊkeɪ kæl`
+
+   Use **generate** mode (Piper-synthesized samples) for a first pass — it's
+   the direct equivalent of what Home Assistant's own notebook would have
+   done. There's also a **bundle** mode that trains from your own real
+   recordings instead, for noticeably better accuracy; worth revisiting later
+   if the generated version under- or over-triggers, but not necessary to get
+   started. If the notebook has a "confusable phrases" field, list each
+   phrase as the other's confusable ("Okay Cal" for the Hey Cal run and vice
+   versa) — they're similar-sounding, and this specifically trains the model
+   to tell them apart instead of tripping on either.
+3. Run the full notebook (~45 minutes per phrase). Each run produces two
+   files — a `.tflite` model and a `.json` manifest with detection
+   thresholds already filled in. Download both, for both phrases: you should
+   end up with `hey_cal.tflite` + `hey_cal.json` and `okay_cal.tflite` +
+   `okay_cal.json`. **Don't hand-write the JSON** like an earlier draft of
+   this doc said to — the notebook's own output already matches the manifest
+   format this stack expects. This was verified directly against the
+   `pymicro_wakeword` pip package (what `linux-voice-assistant` actually
+   loads) — its bundled `okay_nabu.json` is shaped like this, and
+   `MicroWakeWord.from_config()` reads exactly these fields (an earlier draft
+   of this doc had the version number and one key name wrong):
+   ```json
+   {
+     "type": "micro",
+     "wake_word": "Hey Cal",
+     "author": "your_name",
+     "website": "",
+     "model": "hey_cal.tflite",
+     "trained_languages": ["en"],
+     "version": 2,
+     "micro": {
+       "probability_cutoff": 0.85,
+       "feature_step_size": 10,
+       "sliding_window_size": 5,
+       "tensor_arena_size": 50000,
+       "minimum_esphome_version": "2024.7.0"
+     }
+   }
+   ```
+   If a wake word ends up too trigger-happy or too reluctant once it's
+   running for real, `probability_cutoff` (0–1, higher = stricter) is the one
+   number worth hand-tuning before retraining from scratch.
+4. On the kiosk Pi, put all four files in a new custom wake-word folder:
+   ```bash
+   ssh pi@<kiosk-ip> "mkdir -p ~/linux-voice-assistant/wakewords/custom"
+   scp hey_cal.tflite hey_cal.json okay_cal.tflite okay_cal.json \
+     pi@<kiosk-ip>:~/linux-voice-assistant/wakewords/custom/
+   ```
+5. Point the satellite at that folder and restart it — `WAKE_WORD_DIR` is
+   already set up (commented out) in `pi-setup/linux-voice-assistant.service`
+   for this; uncomment it, then:
+   ```bash
+   sudo systemctl daemon-reload
+   sudo systemctl restart linux-voice-assistant
+   sudo systemctl status linux-voice-assistant   # confirm it didn't crash-loop
+   ```
+   If it fails to start, `journalctl -u linux-voice-assistant -f` will show
+   why — the most likely cause at this point is a typo in one of the two
+   manifests.
+6. Back in Home Assistant, open the satellite's device page (Settings →
+   Devices & services → the kiosk Pi device from step 6). It exposes **Wake
+   Word 1** and **Wake Word 2** selects — pick "Hey Cal" for one and "Okay
+   Cal" for the other, so both phrases work at once, rather than picking a
+   single default via `WAKE_MODEL`.
+
+**Caveats**: I can't run this notebook or the satellite from here, so I
+can't independently confirm the manifest fields above still match exactly —
+if a file fails to load, cross-check it against a bundled model's own
+`.json` (same folder as the stock `.tflite` files this app ships with) rather
+than against this doc. And since neither phrase is a common word, false
+triggers should be rare either way, but if one still fires too easily (or not
+easily enough) once you're testing for real, `probability_cutoff` above is
+the first knob to try before retraining.
+
+## 8. Wake overlay on the display
 
 `linux-voice-assistant` exposes a local WebSocket ("peripheral API", port
 6055 by default) with a full conversation lifecycle: `wake_word_detected`,
@@ -241,10 +364,11 @@ actually broken:
 3. **The sentence trigger, typed**: Settings → Voice assistants → your
    pipeline → type (don't speak) "what's today" into the chat box. If this
    works but speaking doesn't, the problem is audio/STT, not the automation.
-4. **The satellite itself**: say the wake word near the kiosk Pi's mic. The
-   wake overlay popping up on the display confirms LVA detected the wake
-   word and the server's connection to it is working, *before* worrying
-   about whether the rest of the pipeline (STT → HA → back to the display)
+4. **The satellite itself**: say "Hey Cal" (or "Okay Cal", or whatever's
+   currently set as `WAKE_MODEL` if you haven't done step 7 yet) near the
+   kiosk Pi's mic. The wake overlay popping up on the display confirms LVA
+   detected the wake word and the server's connection to it is working,
+   *before* worrying about whether the rest of the pipeline (STT → HA → back to the display)
    completes — a useful checkpoint in the middle of this step. If the
    overlay never appears, check the server's logs for
    `[voice] Could not reach linux-voice-assistant` (means the connection

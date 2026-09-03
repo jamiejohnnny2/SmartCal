@@ -6,3 +6,4 @@ client/dist/
 *.log
 pi-setup/.venv/
 __pycache__/
+wakeword-training/output/
