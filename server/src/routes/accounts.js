@@ -74,4 +74,59 @@ router.delete('/:id', async (req, res) => {
   res.status(204).end();
 });
 
+// Lists one account's own calendars (not the flat cross-account list
+// /api/calendars uses for the add-event picker) so the Accounts panel can
+// show per-calendar visibility toggles — e.g. muting a work calendar's
+// events from the kiosk display without unlinking the whole account.
+router.get('/:id/calendars', async (req, res) => {
+  const account = db.data.accounts.find((a) => a.id === req.params.id);
+  if (!account) return res.status(404).json({ error: 'Account not found' });
+  try {
+    const auth = clientForAccount(account);
+    const calendar = google.calendar({ version: 'v3', auth });
+    const { data } = await calendar.calendarList.list();
+    const hidden = new Set(account.hiddenCalendarIds || []);
+    res.json(
+      (data.items ?? [])
+        .filter((cal) => cal.selected !== false)
+        .map((cal) => ({
+          id: cal.id,
+          summary: cal.summary,
+          primary: Boolean(cal.primary),
+          hidden: hidden.has(cal.id),
+        })),
+    );
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Toggles whether one calendar's events show up on the kiosk display. This
+// is separate from Google's own per-account "shown in Google Calendar"
+// selection (still respected too, in calendarSync.js) — it's ours, so it can
+// mute a calendar just for this kiosk without touching the user's actual
+// Google Calendar settings, and doesn't affect the add-event calendar picker
+// (/api/calendars), since you may still want to add something to a calendar
+// you don't want cluttering the passive display.
+router.put('/:id/calendars/:calendarId', async (req, res) => {
+  const account = db.data.accounts.find((a) => a.id === req.params.id);
+  if (!account) return res.status(404).json({ error: 'Account not found' });
+  const { hidden } = req.body ?? {};
+  account.hiddenCalendarIds = account.hiddenCalendarIds || [];
+  const idx = account.hiddenCalendarIds.indexOf(req.params.calendarId);
+  if (hidden && idx === -1) account.hiddenCalendarIds.push(req.params.calendarId);
+  if (!hidden && idx !== -1) account.hiddenCalendarIds.splice(idx, 1);
+  await db.write();
+  // Awaited (unlike the fire-and-forget sync elsewhere in this file) so the
+  // event list is already up to date by the time this response reaches the
+  // client — a visibility toggle should feel immediate, not wait for the
+  // next periodic sync.
+  try {
+    await syncAccount(account);
+  } catch (err) {
+    console.error('Re-sync after calendar visibility change failed:', err.message);
+  }
+  res.json({ hiddenCalendarIds: account.hiddenCalendarIds });
+});
+
 export default router;

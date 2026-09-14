@@ -2,10 +2,17 @@ import { useState } from 'react';
 import { QRCodeSVG } from 'qrcode.react';
 import { api } from '../api.js';
 
-export default function AccountsPanel({ accounts, onClose, onChanged }) {
+export default function AccountsPanel({ accounts, onClose, onChanged, onEventsChanged }) {
   const [label, setLabel] = useState('');
   const [linkUrl, setLinkUrl] = useState('');
   const [error, setError] = useState('');
+
+  // Which account's calendar list is expanded, and each account's calendars
+  // once fetched — fetched lazily on expand rather than for every account up
+  // front, since it's a live Google API call per account.
+  const [expandedId, setExpandedId] = useState(null);
+  const [calendarsByAccount, setCalendarsByAccount] = useState({});
+  const [calendarsLoading, setCalendarsLoading] = useState(null);
 
   async function handleGenerateLink() {
     setError('');
@@ -20,6 +27,44 @@ export default function AccountsPanel({ accounts, onClose, onChanged }) {
   async function handleRemove(id) {
     await api.deleteAccount(id);
     onChanged();
+  }
+
+  async function handleToggleExpand(accountId) {
+    if (expandedId === accountId) {
+      setExpandedId(null);
+      return;
+    }
+    setExpandedId(accountId);
+    if (calendarsByAccount[accountId]) return;
+    setCalendarsLoading(accountId);
+    try {
+      const cals = await api.getAccountCalendars(accountId);
+      setCalendarsByAccount((prev) => ({ ...prev, [accountId]: cals }));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setCalendarsLoading(null);
+    }
+  }
+
+  async function handleToggleCalendar(accountId, cal) {
+    const nextHidden = !cal.hidden;
+    // Optimistic — a toggle should feel instant; reverted below if the
+    // request actually fails.
+    setCalendarsByAccount((prev) => ({
+      ...prev,
+      [accountId]: prev[accountId].map((c) => (c.id === cal.id ? { ...c, hidden: nextHidden } : c)),
+    }));
+    try {
+      await api.setCalendarHidden(accountId, cal.id, nextHidden);
+      onEventsChanged?.();
+    } catch (err) {
+      setCalendarsByAccount((prev) => ({
+        ...prev,
+        [accountId]: prev[accountId].map((c) => (c.id === cal.id ? { ...c, hidden: cal.hidden } : c)),
+      }));
+      setError(err.message);
+    }
   }
 
   return (
@@ -38,20 +83,65 @@ export default function AccountsPanel({ accounts, onClose, onChanged }) {
         <ul className="mb-6 divide-y divide-line">
           {accounts.length === 0 && <li className="py-3 text-muted">No accounts linked yet.</li>}
           {accounts.map((a) => (
-            <li key={a.id} className="flex items-center justify-between py-3">
-              <div className="flex items-center gap-3">
-                <span className="h-3 w-3 rounded-full" style={{ backgroundColor: a.color }} />
-                <div>
-                  <div className="font-medium text-ink">{a.label}</div>
-                  <div className="text-sm text-faint">{a.email}</div>
-                </div>
+            <li key={a.id} className="py-3">
+              <div className="flex items-center justify-between">
+                <button
+                  className="flex min-w-0 flex-1 items-center gap-3 text-left"
+                  onClick={() => handleToggleExpand(a.id)}
+                >
+                  <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: a.color }} />
+                  <div className="min-w-0">
+                    <div className="font-medium text-ink">{a.label}</div>
+                    <div className="text-sm text-faint">{a.email}</div>
+                  </div>
+                  <span className="ml-auto shrink-0 text-xs text-faint">
+                    {expandedId === a.id ? 'Hide calendars ▲' : 'Calendars ▼'}
+                  </span>
+                </button>
+                <button
+                  className="ml-3 shrink-0 rounded-xl bg-red-500/10 px-3 py-2 text-sm font-medium text-red-400 active:bg-red-500/20"
+                  onClick={() => handleRemove(a.id)}
+                >
+                  Unlink
+                </button>
               </div>
-              <button
-                className="rounded-xl bg-red-500/10 px-3 py-2 text-sm font-medium text-red-400 active:bg-red-500/20"
-                onClick={() => handleRemove(a.id)}
-              >
-                Unlink
-              </button>
+
+              {expandedId === a.id && (
+                <div className="mt-3 rounded-xl bg-surface-2 p-3">
+                  {calendarsLoading === a.id && <p className="text-sm text-faint">Loading calendars…</p>}
+                  {calendarsLoading !== a.id && (calendarsByAccount[a.id]?.length ?? 0) === 0 && (
+                    <p className="text-sm text-faint">No calendars found.</p>
+                  )}
+                  <ul className="space-y-1">
+                    {(calendarsByAccount[a.id] || []).map((cal) => (
+                      <li key={cal.id} className="flex items-center justify-between gap-3 py-1">
+                        <span className="min-w-0 truncate text-sm text-ink">
+                          {cal.summary}
+                          {cal.primary && <span className="text-faint"> (primary)</span>}
+                        </span>
+                        <button
+                          role="switch"
+                          aria-checked={!cal.hidden}
+                          onClick={() => handleToggleCalendar(a.id, cal)}
+                          className={`relative h-7 w-12 shrink-0 rounded-full transition-colors ${
+                            cal.hidden ? 'bg-surface' : 'bg-accent'
+                          }`}
+                        >
+                          <span
+                            className={`absolute top-1 h-5 w-5 rounded-full bg-ink transition-transform ${
+                              cal.hidden ? 'translate-x-1' : 'translate-x-6'
+                            }`}
+                          />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-xs text-faint">
+                    Off hides that calendar's events from the kiosk display only — it stays untouched in Google
+                    Calendar itself, and still shows up when adding a new event.
+                  </p>
+                </div>
+              )}
             </li>
           ))}
         </ul>

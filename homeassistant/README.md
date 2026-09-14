@@ -391,8 +391,10 @@ actually broken:
   3") — needs slot-filling a fixed sentence trigger can't really do; a
   local LLM (Ollama) as an Assist fallback is the natural way to add this
   later.
-- **Camera-based presence/wake** — see `pi-setup/gesture-swipe.py` for the
-  gesture side; presence detection is a separate, not-yet-started piece.
+- **Camera-based presence/wake** — already built, see `pi-setup/screen-wake.py`
+  and the main [README.md](../README.md#5-screen-sleepwake-on-motion-optional)
+  (this is a separate piece from voice; the camera only handles the physical
+  screen's own sleep/wake, not any part of the voice pipeline above).
 - **Scripting the add-on installs themselves** — Supervisor's install/start
   API exists but authenticates with a token that's only available to
   processes already running inside HAOS, not from an external script on

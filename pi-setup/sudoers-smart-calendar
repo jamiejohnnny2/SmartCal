@@ -1,0 +1,9 @@
+# Lets the calendar server (server/src/routes/system.js), running as the
+# unprivileged "pi" user, reboot the Pi without a password prompt, for the
+# kiosk's on-screen system menu. Scoped to exactly this one command with no
+# arguments — nothing else gets elevated privileges through this.
+#
+# Install: sudo cp pi-setup/sudoers-smart-calendar /etc/sudoers.d/smart-calendar
+#          sudo chmod 440 /etc/sudoers.d/smart-calendar
+#          sudo visudo -cf /etc/sudoers.d/smart-calendar   # validate before it's live
+pi ALL=(root) NOPASSWD: /sbin/reboot

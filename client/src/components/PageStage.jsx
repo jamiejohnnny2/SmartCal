@@ -16,9 +16,8 @@ function renderPage(page, detailProps) {
 // Hosts the two pages sharing the top half of the screen — Detail and
 // Gallery — and swaps between them on a vertical swipe, via the shared
 // useSwipeCards engine (see its comment for the drag/settle mechanics). A
-// voice command or camera gesture (pushed via server poll) plays the same
-// slide animation but as a programmatic transition, since there's no finger
-// position to track.
+// voice command (pushed via server poll) plays the same slide animation but
+// as a programmatic transition, since there's no finger position to track.
 export default function PageStage({ page, onPageChange, pageTransition, ...detailProps }) {
   const lastTransitionId = useRef(null);
 
@@ -30,9 +29,9 @@ export default function PageStage({ page, onPageChange, pageTransition, ...detai
       neighbor: (dir, current) => otherPage(current),
     });
 
-  // External changes (voice via /api/focus, camera gesture via /api/gesture)
-  // arrive as a `page` prop change plus a fresh `pageTransition` — animate
-  // as a full eased transition from 0 to 1.
+  // External changes (voice via /api/focus) arrive as a `page` prop change
+  // plus a fresh `pageTransition` — animate as a full eased transition from
+  // 0 to 1.
   useEffect(() => {
     if (!pageTransition || pageTransition.id === lastTransitionId.current) return;
     lastTransitionId.current = pageTransition.id;
