@@ -1,7 +1,20 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 const DRAG_ACTIVATE_PX = 10; // minimum movement before a drag commits to being a swipe on this axis
-const COMMIT_THRESHOLD = 0.35; // fraction of the panel's size needed to complete the swipe
+// Fraction of the panel's size needed to complete the swipe on a slow,
+// deliberate drag. This is a fraction rather than a fixed pixel count so it
+// scales with panel size, but on a large 24" kiosk screen even a "small"
+// fraction is a lot of physical travel — a phone-sized panel makes 0.35 feel
+// like a normal swipe, the same fraction on this screen means dragging a
+// third of the way across it. FLICK_VELOCITY_PX_MS below is what actually
+// makes this feel like a phone: a quick flick commits regardless of distance,
+// same as any phone UI, so this fraction only has to cover the slow-drag case.
+const COMMIT_THRESHOLD = 0.2;
+// A drag whose most recent motion is at least this fast (px/ms) commits
+// immediately regardless of COMMIT_THRESHOLD — this is what makes a quick
+// flick from any starting distance register as a swipe, instead of needing
+// to physically cover a fraction of a 24" screen every time.
+const FLICK_VELOCITY_PX_MS = 0.6;
 const MAX_SETTLE_MS = 320; // settle duration for a full-length transition; scaled down by remaining distance
 
 // dir 'up'/'left' means the finger moved toward the negative end of the axis
@@ -263,6 +276,12 @@ export function useSwipeCards({ axis, value, onChange, neighbor }) {
       // only produces one move event before release, and without this the
       // commit/cancel decision would always see progress stuck at 0.
       d.progress = Math.min(1, Math.abs(primary) / d.size);
+      // Velocity sampling starts here too, from 0 — see the "already decided"
+      // branch below for why this is instantaneous (last sample to this one)
+      // rather than averaged over the whole gesture.
+      d.lastSampleAt = e.timeStamp;
+      d.lastSamplePrimary = primary;
+      d.velocity = 0;
       clearTimeout(cleanupTimer.current);
       setLayerTransition('none');
       // The layers haven't mounted yet this tick — the useLayoutEffect above
@@ -281,6 +300,14 @@ export function useSwipeCards({ axis, value, onChange, neighbor }) {
     e.stopPropagation();
     const flipped = recomputeTarget(d, primary);
     d.progress = Math.min(1, Math.abs(primary) / d.size);
+    // Instantaneous velocity (this sample vs. the last one), not averaged
+    // over the whole gesture — a slow drag that ends in a quick flick should
+    // register as a flick, and a fast start that trails off into a slow
+    // drag shouldn't still read as one just because it started fast.
+    const dt = e.timeStamp - d.lastSampleAt;
+    if (dt > 0) d.velocity = (primary - d.lastSamplePrimary) / dt;
+    d.lastSampleAt = e.timeStamp;
+    d.lastSamplePrimary = primary;
     if (flipped) {
       // Swapped which neighbor is being revealed — remount so the new pair
       // starts from d.progress, not 0 (see the useLayoutEffect above), so
@@ -306,7 +333,11 @@ export function useSwipeCards({ axis, value, onChange, neighbor }) {
     e.stopPropagation();
 
     const { from, to } = d;
-    const outcome = d.progress >= COMMIT_THRESHOLD ? 'COMMIT' : 'CANCEL';
+    // Either covering enough distance OR moving fast enough at release
+    // commits — the second is what makes a short, quick flick from anywhere
+    // on this large a screen register the same way it would on a phone.
+    const outcome =
+      d.progress >= COMMIT_THRESHOLD || Math.abs(d.velocity || 0) >= FLICK_VELOCITY_PX_MS ? 'COMMIT' : 'CANCEL';
     // Deferred one tick, same as triggerTransition — if release lands in the
     // same tick as decide (only reachable synthetically, not by an actual
     // finger, but cheap to close off properly), settle() running immediately

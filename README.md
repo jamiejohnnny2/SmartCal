@@ -10,13 +10,15 @@ sharing the top half — a Detail page (Today/Week/Agenda, switched by tapping
 a tab or swiping left/right) and a Gallery page (a photo slideshow, synced
 from your phone). Swiping up or down toggles between the Detail and Gallery
 pages, with the incoming page sliding in from whichever edge matches the
-swipe direction. A camera gesture detector can drive the exact same
-up/down/left/right actions as a touch swipe — see [Gestures](#5-camera-swipe-gestures-optional)
-below.
+swipe direction. Voice commands can drive the exact same up/down/left/right
+actions as a touch swipe — see
+[Voice control](#6-voice-control-via-home-assistant-optional) below. A camera
+handles presence detection only (waking/sleeping the physical screen), not
+navigation — see [Screen sleep/wake](#5-screen-sleepwake-on-motion-optional).
 
 - `server/` — Node.js/Express backend: Google OAuth, calendar sync, REST API
 - `client/` — React (Vite) kiosk UI
-- `pi-setup/` — systemd services + kiosk launch script + camera gesture detector for the Pi
+- `pi-setup/` — systemd services + kiosk launch script + camera motion sensor/display power control for the Pi
 - `homeassistant/` — voice control, including a from-scratch Home Assistant OS setup guide — see [Voice control](#6-voice-control-via-home-assistant-optional)
 
 ## 1. Google Cloud setup (one-time, do this yourself)
@@ -84,6 +86,16 @@ sudo systemctl enable --now smart-calendar
 sudo systemctl status smart-calendar   # confirm it's running
 ```
 
+Allow the server to reboot the Pi (needed for the on-screen system menu's
+"Restart Pi" — see below; skip this and that one button just won't work,
+everything else is unaffected):
+
+```bash
+sudo cp pi-setup/sudoers-smart-calendar /etc/sudoers.d/smart-calendar
+sudo chmod 440 /etc/sudoers.d/smart-calendar
+sudo visudo -cf /etc/sudoers.d/smart-calendar   # validates syntax before it's live
+```
+
 Set up the kiosk browser to launch on desktop login:
 
 ```bash
@@ -102,7 +114,19 @@ Chromium in full-screen kiosk mode pointed at the calendar.
 
 To link accounts once deployed, open `http://<pi-ip>:3001` from any other
 device on your network (not the kiosk touchscreen) and use the Accounts
-panel the same way as in local dev.
+panel the same way as in local dev. That same panel — tap **Accounts** on
+the kiosk itself, or from another device — lists each linked account's
+individual calendars with a toggle per calendar, so a work account's own
+meetings can be hidden from the kiosk display without unlinking the whole
+account (it still shows up when adding a new event, and nothing changes in
+Google Calendar itself).
+
+There's also an intentionally invisible tap target in the screen's top-left
+corner (roughly a 64x64px square) that opens a small maintenance menu —
+refresh the app, restart the Pi, or close the app entirely (it won't
+relaunch itself; reboot or re-run `kiosk.sh` to bring it back). It's
+invisible deliberately, since it's not meant to be part of the everyday UI —
+remember where it is, since there's nothing on screen pointing to it.
 
 ## 4. Gallery photos
 
@@ -118,45 +142,92 @@ slideshow. Sync photos into it from your phone:
    `scp`, whatever you'd rather use. The server just scans that folder; the
    upload page is one convenient way in, not the only one.
 
-## 5. Camera swipe gestures (optional)
+## 5. Screen sleep/wake on motion (optional)
 
-A camera pointed at the room can drive the same up/down/left/right actions a
-touch swipe does — `pi-setup/gesture-swipe.py` watches for a hand/arm
-sweeping across the frame (plain motion tracking, no GPU/NPU needed) and
-posts the direction to the server's `/api/gesture` endpoint.
-
-**This hasn't been tested against a real camera** — it's built and the HTTP
-side is verified, but the motion-detection thresholds will need tuning once
-you can see real detections. Start here:
+Page navigation is touch or voice only (see
+[Voice control](#6-voice-control-via-home-assistant-optional) below) — the
+camera isn't used for that. Its one job is presence detection: notice
+whether anyone's in the room at all, and use that to turn the physical
+screen off after a while and back on the moment someone shows up —
+`pi-setup/screen-wake.py`. It needs OpenCV, same as the rest of `pi-setup/`:
 
 ```bash
 # On the Pi:
 cd "Smart Calender/pi-setup"
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-
-# Test the server integration without a camera:
-python3 gesture-swipe.py --simulate up
-
-# Then try it against the real camera, watching what it detects:
-python3 gesture-swipe.py --debug
 ```
 
-If swipes aren't triggering, or trigger too easily, adjust the constants at
-the top of `gesture-swipe.py` (`MOTION_AREA_MIN`, `SWIPE_MIN_DISPLACEMENT_PX`,
-etc.) — `--debug` prints the displacement it measured for every candidate
-gesture, accepted or not, which is the fastest way to see what to change.
+This controls the **monitor's own power state** over its video cable (DDC/CI
+or HDMI-CEC), not the Pi's — the Pi and kiosk app keep running the whole
+time either way, so the display comes back instantly with the kiosk still
+in exactly the state it was in.
 
-Once it's behaving, install it as a service so it starts on boot:
+**Figure out which backend your screen actually speaks, first** — this is
+an Elo 2495, and Elo's own spec sheet documents VESA DDC/CI support for
+power control but says nothing about HDMI-CEC, which is mainly a
+consumer-TV feature a lot of commercial/open-frame monitors like this one
+don't implement at all. `pi-setup/display-power.sh` defaults to DDC/CI for
+that reason, but confirm it against your actual unit before relying on it:
 
 ```bash
-sudo cp pi-setup/gesture-swipe.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now gesture-swipe
+# On the Pi:
+sudo apt install ddcutil v4l-utils
+sudo usermod -aG i2c pi   # lets ddcutil run without sudo; re-login or just
+                          # restart the service below to pick it up
+
+ddcutil detect            # confirms DDC/CI communication works at all
+ddcutil capabilities | grep -A5 'Feature: D6'   # shows what power values it accepts
+
+# One-shot test — the screen should visibly turn off, then on:
+bash pi-setup/display-power.sh off
+bash pi-setup/display-power.sh on
 ```
 
-(Edit the `WorkingDirectory=`/`User=` lines first if your setup differs from
-`pi` / `/home/pi/Smart Calender`, same as the other service files.)
+If `ddcutil detect` doesn't find the display, or `off` does nothing, try CEC
+instead (needs actual CEC wiring/support on both ends, unconfirmed for this
+model):
+```bash
+cec-ctl --adapter=/dev/cec0 --show-topology   # confirms a CEC sink is even detected
+DISPLAY_POWER_BACKEND=cec bash pi-setup/display-power.sh off
+DISPLAY_POWER_BACKEND=cec bash pi-setup/display-power.sh on
+```
+
+Once one of those actually works, set it up to run continuously:
+
+```bash
+sudo cp pi-setup/screen-wake.service /etc/systemd/system/
+sudo nano /etc/systemd/system/screen-wake.service   # set DISPLAY_POWER_BACKEND
+                                                     # if you needed cec above
+sudo systemctl daemon-reload
+sudo systemctl enable --now screen-wake
+```
+
+Default idle timeout is 10 minutes (`--idle-timeout 600` in the service
+file's `ExecStart=`) — the screen turns off after that long with no motion,
+and back on instantly when it sees any. **This hasn't been tested against
+real hardware** (no camera or Elo display available while building it) —
+`--debug` (add it to `ExecStart=`, or run the script directly first) prints
+every frame's motion reading, which is the fastest way to tell if
+`MOTION_AREA_MIN` at the top of `screen-wake.py` needs adjusting for your
+camera's actual placement/lighting.
+
+One more thing worth doing while you're in `~/.config/wayfire.ini` for the
+portrait rotation: Wayfire has its own idle-based screen blanking (the
+`[idle]` section's `dpms_timeout`), which would otherwise be a second,
+independent system trying to manage the same screen's power alongside this
+one. Turn it off so they don't fight each other:
+```ini
+[idle]
+dpms_timeout = -1
+```
+
+**Caveat inherent to any motion-only sensor** (this isn't specific to the
+implementation above — a dedicated PIR sensor would have the same
+limitation): it can only see movement, not presence, so someone sitting
+nearly still (reading, on a call) can still time out. If that turns out to
+matter in practice, the fix is a lower motion threshold or a longer timeout,
+not a different architecture.
 
 ## 6. Voice control via Home Assistant (optional)
 
@@ -168,7 +239,7 @@ OS, onboarding, the two add-ons you need, and pairing) through to the
 config that wires it to this app, and reuses the same `/api/focus` endpoint
 the touch UI already drives.
 
-**Bigger caveat than the gallery/gesture features above**: the voice
+**Bigger caveat than the gallery/screen-wake features above**: the voice
 satellite project this depends on (`linux-voice-assistant`) is new and
 still under active development — expect more real troubleshooting here
 than with the rest of this app.

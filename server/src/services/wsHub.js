@@ -4,9 +4,9 @@ let wss = null;
 
 // Mounts a WebSocket server on the same HTTP server Express already listens
 // on (no separate port) for pushing low-latency events to the kiosk UI —
-// polling (as /api/focus and /api/gesture use) is fine for voice/gesture
-// commands where a second or two of delay is imperceptible, but the wake
-// overlay needs to feel instant, which polling can't give us.
+// polling (as /api/focus uses) is fine for voice commands where a second or
+// two of delay is imperceptible, but the wake overlay needs to feel instant,
+// which polling can't give us.
 export function attachWsHub(httpServer, path) {
   wss = new WebSocketServer({ server: httpServer, path });
   wss.on('connection', (ws) => {

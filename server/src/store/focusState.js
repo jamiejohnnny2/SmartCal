@@ -1,5 +1,7 @@
 // In-memory "what should the top half of the kiosk display be showing" state,
-// shared by the focus (voice) and gesture (touch/camera) routes. The screen
+// driven by the focus (voice) route — touch swipes update the equivalent
+// local state directly in the client instead of round-tripping through here.
+// The screen
 // is three pages: the month grid (always visible, not tracked here), the
 // Detail page (today/week/agenda, picked via `detailMode`), and the Gallery
 // page — `page` toggles which of those two occupies the top half.

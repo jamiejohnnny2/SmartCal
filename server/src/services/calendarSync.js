@@ -28,6 +28,10 @@ export async function syncAccount(account) {
 
   const { data: calListData } = await calendar.calendarList.list();
   const calendars = calListData.items ?? [];
+  // Our own per-calendar mute, set from the Accounts panel — separate from
+  // Google's own `cal.selected` below, which reflects the user's actual
+  // Google Calendar settings rather than anything about this kiosk.
+  const hiddenCalendarIds = new Set(account.hiddenCalendarIds || []);
 
   const timeMin = new Date(Date.now() - SYNC_WINDOW_DAYS_PAST * 86400000).toISOString();
   const timeMax = new Date(Date.now() + SYNC_WINDOW_DAYS_FUTURE * 86400000).toISOString();
@@ -36,6 +40,7 @@ export async function syncAccount(account) {
 
   for (const cal of calendars) {
     if (cal.selected === false) continue;
+    if (hiddenCalendarIds.has(cal.id)) continue;
     const { data: eventsData } = await calendar.events.list({
       calendarId: cal.id,
       timeMin,

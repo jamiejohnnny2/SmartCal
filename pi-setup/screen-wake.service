@@ -1,0 +1,22 @@
+[Unit]
+Description=Smart Calendar camera-based motion sensor (screen sleep/wake)
+After=smart-calendar.service
+Requires=smart-calendar.service
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Smart Calender/pi-setup
+# ddcutil needs to reach /dev/i2c-* — add pi to the i2c group first:
+#   sudo usermod -aG i2c pi
+# (then log out/in, or just restart this service — group membership is
+# re-read at process start). Switch to Environment=DISPLAY_POWER_BACKEND=cec
+# only once you've confirmed CEC actually works on your display; see
+# README.md for the test commands and why ddcutil is the default.
+Environment=DISPLAY_POWER_BACKEND=ddcutil
+ExecStart=/usr/bin/python3 screen-wake.py --idle-timeout 600
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

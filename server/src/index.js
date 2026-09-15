@@ -6,8 +6,8 @@ import accountsRouter from './routes/accounts.js';
 import calendarsRouter from './routes/calendars.js';
 import eventsRouter from './routes/events.js';
 import focusRouter from './routes/focus.js';
-import gestureRouter from './routes/gesture.js';
 import photosRouter, { galleryDir, migrateLegacyPhotoMeta } from './routes/photos.js';
+import systemRouter from './routes/system.js';
 import voiceRouter from './routes/voice.js';
 import { startSyncLoop, syncAllAccounts } from './services/calendarSync.js';
 import { startVoiceBridge } from './services/voiceBridge.js';
@@ -29,8 +29,8 @@ app.use('/api/accounts', accountsRouter);
 app.use('/api/calendars', calendarsRouter);
 app.use('/api/events', eventsRouter);
 app.use('/api/focus', focusRouter);
-app.use('/api/gesture', gestureRouter);
 app.use('/api/photos', photosRouter);
+app.use('/api/system', systemRouter);
 app.use('/api/voice', voiceRouter);
 
 app.post('/api/sync', async (req, res) => {

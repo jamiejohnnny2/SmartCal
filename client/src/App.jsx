@@ -4,6 +4,7 @@ import PageStage from './components/PageStage.jsx';
 import MonthGrid from './components/MonthGrid.jsx';
 import EventModal from './components/EventModal.jsx';
 import AccountsPanel from './components/AccountsPanel.jsx';
+import SystemMenu from './components/SystemMenu.jsx';
 import WakeOverlay from './components/WakeOverlay.jsx';
 import { api } from './api.js';
 
@@ -30,6 +31,7 @@ export default function App() {
 
   const [modalState, setModalState] = useState(null); // { slot } | { event } | null
   const [accountsOpen, setAccountsOpen] = useState(false);
+  const [systemMenuOpen, setSystemMenuOpen] = useState(false);
   const [lastSyncAt, setLastSyncAt] = useState(null);
   // `voiceData` deliberately isn't cleared when the overlay hides — it keeps
   // whatever it last showed so WakeOverlay has something to fade out from,
@@ -85,9 +87,8 @@ export default function App() {
     voiceDismissTimer.current = setTimeout(() => setVoiceVisible(false), timeoutMs);
   }, []);
 
-  // Picks up voice-driven and camera-gesture-driven page/view changes pushed
-  // via POST /api/focus and /api/gesture (e.g. a Home Assistant automation,
-  // or the camera swipe detector). Applies the exact same state a touch
+  // Picks up voice-driven page/view changes pushed via POST /api/focus (e.g.
+  // a Home Assistant automation). Applies the exact same state a touch
   // interaction would, so this is just another input.
   const pollFocus = useCallback(async () => {
     const focus = await api.getFocus();
@@ -231,6 +232,16 @@ export default function App() {
 
   return (
     <div className="relative flex h-screen w-screen flex-col overflow-hidden bg-bg">
+      {/* Invisible on purpose — a maintenance menu (refresh/restart/close),
+          not part of the everyday kiosk UI. Sits over the header's own
+          corner, above PageStage's swipeable area, so it can't intercept a
+          swipe. */}
+      <button
+        aria-label="System menu"
+        onClick={() => setSystemMenuOpen(true)}
+        className="absolute left-0 top-0 z-40 h-16 w-16"
+      />
+
       <Header
         now={now}
         accountCount={accounts.length}
@@ -283,8 +294,15 @@ export default function App() {
       )}
 
       {accountsOpen && (
-        <AccountsPanel accounts={accounts} onClose={() => setAccountsOpen(false)} onChanged={refreshAccounts} />
+        <AccountsPanel
+          accounts={accounts}
+          onClose={() => setAccountsOpen(false)}
+          onChanged={refreshAccounts}
+          onEventsChanged={refreshEvents}
+        />
       )}
+
+      {systemMenuOpen && <SystemMenu onClose={() => setSystemMenuOpen(false)} />}
 
       <WakeOverlay
         visible={voiceVisible}

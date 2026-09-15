@@ -17,6 +17,12 @@ export const api = {
   getAccounts: () => request('/accounts'),
   getAuthUrl: (label) => request(`/accounts/auth-url?label=${encodeURIComponent(label)}`),
   deleteAccount: (id) => request(`/accounts/${id}`, { method: 'DELETE' }),
+  getAccountCalendars: (accountId) => request(`/accounts/${accountId}/calendars`),
+  setCalendarHidden: (accountId, calendarId, hidden) =>
+    request(`/accounts/${accountId}/calendars/${encodeURIComponent(calendarId)}`, {
+      method: 'PUT',
+      body: JSON.stringify({ hidden }),
+    }),
 
   getCalendars: () => request('/calendars'),
 
@@ -28,4 +34,7 @@ export const api = {
   triggerSync: () => request('/sync', { method: 'POST' }),
 
   getFocus: () => request('/focus'),
+
+  restartPi: () => request('/system/restart', { method: 'POST' }),
+  closeApp: () => request('/system/close', { method: 'POST' }),
 };
