@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Smart Calendar — Privacy Policy</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<style>
+  body { font-family: system-ui, sans-serif; max-width: 640px; margin: 3rem auto; padding: 0 1.5rem; line-height: 1.6; color: #222; }
+  h1 { margin-bottom: 0.25rem; }
+  h2 { margin-top: 2rem; font-size: 1.15rem; }
+  .updated { color: #666; margin-top: 0; }
+  a { color: #2a6ebb; }
+</style>
+</head>
+<body>
+  <h1>Smart Calendar — Privacy Policy</h1>
+  <p class="updated">Last updated: 2026-09-18</p>
+
+  <p>
+    Smart Calendar is a self-hosted, single-household application. This policy describes what
+    data it accesses through Google's APIs, and what happens to that data.
+  </p>
+
+  <h2>What it accesses</h2>
+  <p>
+    With permission from each Google account that a household member links, Smart Calendar
+    requests:
+  </p>
+  <ul>
+    <li><strong>Google Calendar</strong> (read/write) — to display upcoming events on the
+      household's shared screen, and to create, edit, or delete events when a household member
+      adds one from that screen.</li>
+    <li><strong>Basic account info</strong> (email address) — to label which linked account each
+      calendar belongs to inside the app.</li>
+  </ul>
+
+  <h2>Where it's stored</h2>
+  <p>
+    All calendar data and account credentials are stored locally on the household's own
+    Raspberry Pi, on their own home network. Nothing is sent to, or stored on, any server operated
+    by the developer or any third party. There is no central or shared backend — each household
+    runs its own independent copy of this software on its own hardware.
+  </p>
+
+  <h2>Who it's shared with</h2>
+  <p>
+    Nobody. This data is never sold, shared, or transmitted to any third party, advertiser, or
+    analytics service. The only communication is directly between the household's own device and
+    Google's Calendar API, using each linked account's own authorization.
+  </p>
+
+  <h2>Retention and removal</h2>
+  <p>
+    Data persists only on the household's own device for as long as an account stays linked.
+    Unlinking an account from the app immediately removes its stored calendar data and
+    credentials from that device. A household member can also revoke access at any time from
+    their <a href="https://myaccount.google.com/permissions" target="_blank" rel="noreferrer">Google
+    Account permissions page</a>.
+  </p>
+
+  <h2>Contact</h2>
+  <p>
+    Questions about this app or policy can be raised via the project's
+    <a href="https://github.com/jamiejohnnny2/SmartCal">GitHub repository</a>.
+  </p>
+</body>
+</html>
